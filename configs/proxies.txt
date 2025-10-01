@@ -1,0 +1,7 @@
+# Free proxy list - Replace with your own proxy servers
+# Format: ip:port:username:password (username:password optional)
+# SOCKS5 proxies
+127.0.0.1:1080
+# HTTP proxies  
+127.0.0.1:8080
+# Add more proxies here...
