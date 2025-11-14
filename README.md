@@ -6,7 +6,7 @@ This is an advanced Gmail password brute-force tool implemented in Python with m
 
 > **⚠️ DISCLAIMER:** This tool is intended for educational and authorized security testing purposes ONLY. Unauthorized access to accounts is illegal and unethical. Use responsibly and only on accounts you own or have explicit written permission to test.
 
-## 🚀 New Features (v2.0)
+##  New Features (v2.0)
 
 ### Advanced Evasion Techniques
 - **Proxy Rotation**: Automatically rotates through SOCKS5/HTTP proxies to change IP addresses
@@ -25,7 +25,7 @@ This is an advanced Gmail password brute-force tool implemented in Python with m
 - **Wordlist Generator**: Create targeted password lists based on OSINT
 - **Configuration Management**: Easy-to-use config files for all settings
 
-## 📋 Requirements
+##  Requirements
 
 - Python 3.7+
 - Required Python packages (see requirements.txt)
@@ -33,7 +33,7 @@ This is an advanced Gmail password brute-force tool implemented in Python with m
 - Password wordlists (rockyou.txt or custom)
 - Target Gmail account (for authorized testing only)
 
-## 🛠️ Installation
+##  Installation
 
 1. Clone the repository:
 ```bash
@@ -55,7 +55,7 @@ notepad config.ini
 notepad proxies.txt
 ```
 
-## 🎯 Usage
+##  Usage
 
 ### Basic Usage
 ```bash
@@ -72,7 +72,7 @@ python proxy_manager.py
 python wordlist_generator.py
 ```
 
-## ⚙️ Configuration
+##  Configuration
 
 Edit `config.ini` to customize:
 
@@ -96,7 +96,7 @@ smtp_server = smtp.gmail.com
 smtp_port = 587
 ```
 
-## 🔧 Advanced Features
+##  Advanced Features
 
 ### Proxy Management
 - Supports HTTP and SOCKS5 proxies
@@ -116,21 +116,21 @@ smtp_port = 587
 - Color-coded console output
 - Attack progress tracking
 
-## 📊 Performance Tips
+##  Performance Tips
 
 1. **Use Quality Proxies**: Premium proxies work better than free ones
 2. **Optimize Thread Count**: Start with 3-5 threads, adjust based on response
 3. **Smart Wordlists**: Use targeted lists instead of massive generic ones
 4. **Monitor Rate Limits**: Adjust delays if getting blocked frequently
 
-## 🛡️ Detection Evasion
+##  Detection Evasion
 
 - **Variable Timing**: Random delays prevent pattern detection
 - **IP Rotation**: Proxy switching distributes requests across IPs
 - **Session Management**: Maintains realistic connection patterns
 - **Error Handling**: Graceful handling of blocks and timeouts
 
-## 📁 File Structure
+##  File Structure
 
 ```
 GmailPassword_BruteForce/
@@ -145,21 +145,7 @@ GmailPassword_BruteForce/
 └── README.md             # This file
 ```
 
-## ⚖️ Legal & Ethical Use
-
-This tool is provided for:
-- ✅ Educational purposes and security research
-- ✅ Authorized penetration testing
-- ✅ Testing your own accounts
-- ✅ Security awareness training
-
-This tool must NOT be used for:
-- ❌ Unauthorized access to accounts
-- ❌ Illegal activities
-- ❌ Malicious purposes
-- ❌ Violating terms of service
-
-## 🔒 Security Notes
+##  Security Notes
 
 - Gmail has sophisticated bot detection
 - Use strong, unique passwords for your accounts
@@ -167,38 +153,5 @@ This tool must NOT be used for:
 - Monitor your account for suspicious activity
 - This tool demonstrates why strong passwords matter
 
-## 🤝 Contributing
 
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
 
-## 📝 Changelog
-
-### v2.0 (Current)
-- Added proxy rotation and IP changing
-- Implemented multi-threading
-- Smart rate limiting with jitter
-- Advanced retry mechanisms
-- Proxy management utilities
-- Custom wordlist generation
-- Configuration file support
-- Enhanced logging and monitoring
-
-### v1.0 (Legacy)
-- Basic SMTP brute force
-- Simple retry logic
-- Single-threaded operation
-
-## 📞 Support
-
-For questions or issues:
-- Open an issue on GitHub
-- Check the documentation
-- Review configuration settings
-
----
-
-**Remember**: Always use this tool responsibly and legally!
